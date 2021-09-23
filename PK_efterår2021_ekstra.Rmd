@@ -1,0 +1,183 @@
+---
+title: "Postkortindsamling Efterår 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+```
+
+Ifm. postkortindsamlingen efterår 2021 udfører jeg en analyse til bestemmelse af et ekstra segment på 500-1000 medlemmer. 
+Jeg vil først undersøge juleindsamlingsbidragsydere og "major donors", dernæst vil jeg se, om tidligere postkortindsamlingsbidragsydere har nogle fællestræk de sidste to år (Varenummer = 811) og slutteligt vil jeg se, om der er nogen sammenhæng mellem fødselsdag og om folk har bidraget til postkortindsamlinger tidligere. 
+
+
+# Undersøger juleindsamlingsbidragsydere
+
+## Indlæser data
+```{r}
+
+juleindsamling <- read.csv("juleindsamlingsbidrag19-20.csv", sep = ";", na.strings = c("NULL", "", " "))
+
+```
+
+## Cleaner data
+```{r}
+
+juleindsamling$nc_amount <- gsub("\\,.*", "", juleindsamling$nc_amount) 
+
+juleindsamling$nc_amount <- as.numeric(juleindsamling$nc_amount)
+
+```
+
+### Ændrer indmeldelsesdato i til datoen første indbetaling, hvis denne er tidligere end indmeldelsesdato
+```{r}
+
+# Vælger mindste indbetalingsdato for hver medlemsnummer, så hvert medlem får 1 række
+mindste_indbetalingsdato <- juleindsamling %>%
+  group_by(AccountNumber) %>%
+  arrange(nc_paymentdate) %>%
+  slice(1L)
+
+
+# Ændrer indmeldelsesdatoen hvis den mindste indbetalingsdato er tidligere end indmeldelsesdatoen
+mindste_indbetalingsdato <- mindste_indbetalingsdato %>% mutate(nc_accountcreatedon = if_else(nc_paymentdate < nc_accountcreatedon, nc_paymentdate, nc_accountcreatedon))
+
+# Indsætter de nye indmeldelsesdatoer i persondata
+juleindsamling$nc_accountcreatedon[match(mindste_indbetalingsdato$AccountNumber, juleindsamling$AccountNumber)] <- mindste_indbetalingsdato$nc_accountcreatedon
+
+```
+
+### Indsætter indbetalingsår 
+```{r}
+
+juleindsamling$Indbetalingsår <- as.numeric(format(as.Date(juleindsamling$nc_paymentdate), "%Y"))
+
+```
+
+
+## Personer der har bidraget mere end 1 gang
+
+```{r}
+
+flere_bidrag <- subset(data.frame(table(juleindsamling$AccountNumber)), Freq > 1)
+names(flere_bidrag)[1] <- "AccountNumber"
+
+flere_bidrag$AccountNumber <- as.integer(flere_bidrag$AccountNumber)
+
+```
+
+
+## Levetid for ophørte medlemmer
+```{r}
+
+juleindsamling$nc_accountcreatedon <- as.POSIXct(juleindsamling$nc_accountcreatedon)
+juleindsamling$Levetid <- round(as.numeric(difftime(juleindsamling$nc_expiredon, juleindsamling$nc_accountcreatedon, units = "days")))
+
+``` 
+
+
+
+## Levetid for ikke-ophørte medlemmer
+```{r}
+
+mean.POSIXct(subset(juleindsamling, is.na(nc_expiredon))$nc_accountcreatedon)
+
+
+ophørte_medlemmer <- subset(juleindsamling, !is.na(nc_expiredon))
+ophørte_medlemmer$nc_accountcreatedon
+
+hej <- subset(ophørte_medlemmer, nc_accountcreatedon == "2015-06-16 13:24:34 CEST")
+hej$Levetid
+
+```
+
+
+```{r}
+
+# Indsætter Levetid hvor ophørt = NA dvs. aktive medlemmer
+juleindsamling$Levetid[is.na(juleindsamling$Levetid)] <- mean(juleindsamling$Levetid, na.rm = T)
+
+```
+
+## Demografiundersøgelse
+
+```{r}
+
+regioner <- aggregate(nc_amount ~ nc_RegionName, juleindsamling, mean)
+names(regioner)[2] <- "gennemsnitsbidrag"
+regioner$antal_bidrag <- aggregate(nc_amount ~ nc_RegionName, juleindsamling, length)[2]
+regioner$sum_af_bidrag <- aggregate(nc_amount ~ nc_RegionName, juleindsamling, sum)[2]
+
+```
+
+
+```{r}
+
+gender <- aggregate(nc_amount ~ nc_gender, juleindsamling, mean)
+names(gender)[2] <- "gennemsnitsbidrag"
+gender$antal_bidrag <- aggregate(nc_amount ~ nc_gender, juleindsamling, length)[2]
+gender$sum_af_bidrag <- aggregate(nc_amount ~ nc_gender, juleindsamling, sum)[2]
+
+```
+
+
+## Fødselsdato??
+```{r}
+
+juleindsamling$nc_birthdate <- as.POSIXct(juleindsamling$nc_birthdate)
+
+fødselsdag_gnsbeløb <- aggregate(nc_amount ~ months.POSIXt(juleindsamling$nc_birthdate), juleindsamling, mean)
+
+```
+
+```{r}
+
+mean.POSIXct(juleindsamling$nc_birthdate, na.rm = T)
+
+```
+
+
+
+PLAN: brug udvidet indbetalinger (gem som .csv-fil fra LTV analyse) til at finde seneste indbetalingsdato (se i LTV analyse script nederst) for at lave en recency kolonne (dage siden sidste betaling - del evt. op i frekvens), dernæst lave frequency kolonne (antal donationer i alt) og slutteligt lave monetary value kolonne (sum af alle donationer)
+
+# Major donors
+
+```{r}
+
+
+
+```
+
+
+
+
+# Tidligere postkortindsamlingsbidragsydere
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+## Fødselsdato ??
+```{r}
+
+
+
+```
+
+
+
+
+
